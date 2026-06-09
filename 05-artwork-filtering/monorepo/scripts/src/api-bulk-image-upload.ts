@@ -40,15 +40,21 @@ async function main() {
     const uploadUrlResponse = await apiFetch(apiBaseUrl, "/auth/photos/presigned-url", {
       method: "POST",
       headers: {
+        "Content-Type": "application/json",
         Authorization: token,
       },
+      body: JSON.stringify({
+        imageName: photoName.replace(/\.[^.]+$/, ""),
+        imageDescription: "Uploaded by the bulk image script",
+        contentType: contentTypeFor(photoName),
+      }),
     });
 
     if (!uploadUrlResponse.ok) {
       throw new Error(`Could not get upload URL. HTTP ${uploadUrlResponse.status}`);
     }
 
-    const uploadUrl = await uploadUrlResponse.text();
+    const { uploadUrl } = await uploadUrlResponse.json() as { uploadUrl: string };
     const photoPath = join(photosDir, photoName);
     const uploadResponse = await fetch(uploadUrl, {
       method: "PUT",
@@ -71,7 +77,7 @@ async function main() {
   }
 
   const body = await photosResponse.json() as { photoData?: unknown[] };
-  console.log(`Bucket now contains ${body.photoData?.length ?? 0} photos.`);
+  console.log(`Gallery now contains ${body.photoData?.length ?? 0} photos.`);
 }
 
 main().catch((error) => {

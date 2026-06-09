@@ -14,8 +14,13 @@ curl -sf -X DELETE "$API_BASE_URL/auth/admin/photos" \
 echo ""
 
 for photo in "$PHOTOS_DIR"/*; do
+  photo_name="$(basename "$photo")"
+  image_name="${photo_name%.*}"
   upload_url=$(curl -sf -X POST "$API_BASE_URL/auth/photos/presigned-url" \
-    -H "Authorization: $COGNITO_ID_TOKEN")
+    -H "Authorization: $COGNITO_ID_TOKEN" \
+    -H "Content-Type: application/json" \
+    -d "{\"imageName\":\"$image_name\",\"imageDescription\":\"Uploaded by the bulk image script\",\"contentType\":\"image/jpeg\"}" \
+    | node -e "let body=''; process.stdin.on('data', c => body += c); process.stdin.on('end', () => console.log(JSON.parse(body).uploadUrl));")
 
   if [ -z "$upload_url" ]; then
     echo "Could not get upload URL from $API_BASE_URL/auth/photos/presigned-url"
@@ -30,4 +35,4 @@ done
 photos_response=$(curl -sf "$API_BASE_URL/public/gallery-photos")
 photo_count=$(printf "%s" "$photos_response" | grep -o '"id"' | wc -l | tr -d ' ')
 
-echo "Bucket now contains $photo_count photos."
+echo "Gallery now contains $photo_count photos."

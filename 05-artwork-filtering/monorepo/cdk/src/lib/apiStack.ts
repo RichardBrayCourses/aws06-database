@@ -8,6 +8,7 @@ import {
   RestApi,
 } from "aws-cdk-lib/aws-apigateway";
 import { UserPool } from "aws-cdk-lib/aws-cognito";
+import * as iam from "aws-cdk-lib/aws-iam";
 import { Runtime } from "aws-cdk-lib/aws-lambda";
 import { NodejsFunction } from "aws-cdk-lib/aws-lambda-nodejs";
 import { Bucket } from "aws-cdk-lib/aws-s3";
@@ -31,6 +32,7 @@ export class ApiStack extends Stack {
       this,
       "/cognito/user-pool-id",
     );
+    const databaseName = process.env.CDK_DATABASE_NAME ?? "uptickart";
 
     const photosBucket = Bucket.fromBucketName(
       this,
@@ -51,16 +53,40 @@ export class ApiStack extends Stack {
       ),
       handler: "handler",
       runtime: Runtime.NODEJS_24_X,
-      timeout: Duration.seconds(10),
+      timeout: Duration.seconds(30),
       environment: {
+        DATABASE_NAME: databaseName,
         IMAGES_BUCKET_NAME: imagesBucketName,
         IMAGES_CLOUDFRONT_URL: imagesCloudfrontUrl,
+      },
+      bundling: {
+        nodeModules: [
+          "pg",
+          "@aws-sdk/client-secrets-manager",
+          "@aws-sdk/client-ssm",
+        ],
       },
     });
 
     photosBucket.grantRead(apiFunction);
     photosBucket.grantPut(apiFunction);
     photosBucket.grantDelete(apiFunction);
+
+    apiFunction.addToRolePolicy(
+      new iam.PolicyStatement({
+        actions: ["ssm:GetParameter"],
+        resources: [
+          `arn:aws:ssm:${this.region}:${this.account}:parameter/rds/*`,
+        ],
+      }),
+    );
+
+    apiFunction.addToRolePolicy(
+      new iam.PolicyStatement({
+        actions: ["secretsmanager:GetSecretValue"],
+        resources: ["*"],
+      }),
+    );
 
     const api = new RestApi(this, "ApiGateway", {
       restApiName: "api-service",

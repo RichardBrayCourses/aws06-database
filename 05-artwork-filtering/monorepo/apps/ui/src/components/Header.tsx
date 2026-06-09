@@ -9,10 +9,16 @@ import {
 import { useAuth } from "@/context/AuthContext";
 import { useTheme } from "@/context/ThemeContext";
 import { cn } from "@/lib/utils";
-import { Moon, Sun, User } from "lucide-react";
+import { Moon, Search, Sun, User } from "lucide-react";
 import { Link } from "react-router-dom";
+import { Input } from "./ui/input";
 
-const Header = () => {
+type HeaderProps = {
+  searchText: string;
+  onSearchTextChange: (value: string) => void;
+};
+
+const Header = ({ searchText, onSearchTextChange }: HeaderProps) => {
   const { dark, setDark } = useTheme();
   const { isLoggedIn, login, logout } = useAuth();
 
@@ -27,6 +33,16 @@ const Header = () => {
       <Button className="m-1" asChild variant="ghost">
         <Link to="/profile">Profile</Link>
       </Button>
+      <div className="relative ml-2 max-w-sm flex-1">
+        <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+        <Input
+          aria-label="Search artwork"
+          className="pl-9"
+          placeholder="Search artwork"
+          value={searchText}
+          onChange={(event) => onSearchTextChange(event.target.value)}
+        />
+      </div>
       <Button
         className="m-1  ml-auto"
         variant="ghost"
