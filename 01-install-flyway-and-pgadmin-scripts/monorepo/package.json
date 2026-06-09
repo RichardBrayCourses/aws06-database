@@ -3,6 +3,8 @@
   "private": true,
   "version": "1.0.0",
   "scripts": {
+    "install:macos": "bash scripts/install-flyway-and-pgadmin-macos.sh",
+    "install:windows": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/install-flyway-and-pgadmin-windows.ps1",
     "bootstrap-up": "pnpm -C scripts run bootstrap-up",
     "bootstrap-down": "pnpm -C scripts run bootstrap-down",
     "api:test": "tsx scripts/src/api-test.ts",
