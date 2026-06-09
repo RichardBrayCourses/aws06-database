@@ -34,7 +34,7 @@ function removeTrailingSlash(url: string) {
 }
 
 function normaliseUploadBody(body: unknown) {
-  const payload = body as {
+  const payload = (body && typeof body === "object" ? body : {}) as {
     imageName?: unknown;
     imageDescription?: unknown;
     contentType?: unknown;
