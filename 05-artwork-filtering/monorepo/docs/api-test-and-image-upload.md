@@ -18,10 +18,10 @@ Run the tests:
 pnpm run api:test
 ```
 
-Upload the images:
+Seed the images:
 
 ```bash
-pnpm run api:bulk-image-upload
+pnpm run images:init
 ```
 
 Print the website URL:

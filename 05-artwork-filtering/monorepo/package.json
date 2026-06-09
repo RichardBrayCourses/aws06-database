@@ -8,7 +8,6 @@
     "bootstrap-up": "pnpm -C scripts run bootstrap-up",
     "bootstrap-down": "pnpm -C scripts run bootstrap-down",
     "api:test": "tsx scripts/src/api-test.ts",
-    "api:bulk-image-upload": "pnpm run images:init",
     "cognito:get-token": "tsx scripts/src/cognito-get-token.ts",
     "cognito:test-users": "tsx scripts/src/ensure-cognito-test-users.ts",
     "cdk:deploy:website": "pnpm -C cdk run cdk:deploy:website",

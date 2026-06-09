@@ -1,171 +1,98 @@
-# AWS 06 Database Setup
+# Lesson 05 - Artwork Filtering
 
-This lesson installs the database tools used later in the course:
+This lesson makes the gallery database-backed.
 
-- Redgate Flyway, for database migrations and versioning
-- pgAdmin 4, for working with PostgreSQL databases
+The app now stores and searches artwork metadata in RDS:
 
-Choose the section for your operating system only. Windows users should follow the Windows section. Mac users should follow the Mac section.
+- registered user profile data lives in `registered_user`
+- uploaded artwork metadata lives in `images`
+- public gallery reads from the database
+- search matches artwork title, description, and author nickname
+- gallery cards show the author nickname
+- real user uploads still use protected Cognito routes
 
-## Windows Setup
+This lesson also adds stable seed artwork.
 
-These instructions use the PowerShell script at:
+## Seed Artwork
 
-```powershell
-scripts\install-flyway-and-pgadmin-windows.ps1
-```
-
-The script installs Flyway and pgAdmin using `winget`.
-
-### Step 1 - check that winget is installed
-
-Open PowerShell and enter:
-
-```powershell
-winget --version
-```
-
-If this command is not recognised, install **App Installer** from the Microsoft Store, then open a new PowerShell terminal and try again.
-
-### Step 2 - move into the monorepo folder
-
-If your terminal is currently in the `aws06-database` folder, enter:
-
-```powershell
-cd .\01-install-flyway-and-pgadmin-scripts\monorepo
-```
-
-If your terminal is already in the `01-install-flyway-and-pgadmin-scripts\monorepo` folder, you can skip this step.
-
-### Step 3 - allow local PowerShell scripts to run
-
-PowerShell may block scripts until you allow locally-created scripts for your user account. Run this command in PowerShell:
-
-```powershell
-Set-ExecutionPolicy -Scope CurrentUser -ExecutionPolicy RemoteSigned
-```
-
-When PowerShell asks for confirmation, enter:
+Flyway migration `V5__Create_system_user.sql` creates a stable database user:
 
 ```text
-Y
+sub = system
+nickname = system
 ```
 
-This setting applies only to the current Windows user.
+The seed script uploads local images to S3 and upserts database rows owned by `system`.
 
-### Step 4 - run the installer script
-
-From the `01-install-flyway-and-pgadmin-scripts\monorepo` folder, run:
-
-```powershell
-.\scripts\install-flyway-and-pgadmin-windows.ps1
-```
-
-If PowerShell still blocks the script, run it with a one-time execution-policy bypass:
-
-```powershell
-powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\install-flyway-and-pgadmin-windows.ps1
-```
-
-If you have already installed the course Node.js and pnpm tools, you can alternatively run:
-
-```powershell
-pnpm run install:windows
-```
-
-### Step 5 - check the installation
-
-Open a new PowerShell terminal and check Flyway:
-
-```powershell
-flyway -v
-```
-
-To check pgAdmin, open the Windows Start menu and search for:
-
-```text
-pgAdmin 4
-```
-
-## Mac Setup
-
-These instructions use the shell script at:
+Run it with:
 
 ```bash
-scripts/install-flyway-and-pgadmin-macos.sh
+pnpm run images:init
 ```
 
-The script installs Flyway and pgAdmin using Homebrew.
+This seed flow does not require a Cognito login. It runs locally using AWS and RDS credentials.
 
-### Step 1 - check that Homebrew is installed
+## Run
 
-Open Terminal and enter:
+From this folder:
 
 ```bash
-brew --version
+pnpm install
+pnpm run deploy-everything
 ```
 
-If this command is not recognised, install Homebrew from:
+`deploy-everything` now:
 
-```text
-https://brew.sh/
-```
+1. deploys the AWS stacks
+2. runs Flyway migrations
+3. seeds system artwork
+4. deploys the API
+5. builds and uploads the UI
 
-After installing Homebrew, open a new Terminal window before continuing.
-
-### Step 2 - move into the monorepo folder
-
-If your terminal is currently in the `aws06-database` folder, enter:
+After deployment:
 
 ```bash
-cd ./01-install-flyway-and-pgadmin-scripts/monorepo
+pnpm run api:test
 ```
 
-If your terminal is already in the `01-install-flyway-and-pgadmin-scripts/monorepo` folder, you can skip this step.
-
-### Step 3 - run the installer script
-
-From the `01-install-flyway-and-pgadmin-scripts/monorepo` folder, run:
+Then open the CloudFront UI:
 
 ```bash
-bash scripts/install-flyway-and-pgadmin-macos.sh
+pnpm run ui:url
 ```
 
-If you have already installed the course Node.js and pnpm tools, you can alternatively run:
+## Expected Behaviour
+
+- The public gallery should show seeded system artwork.
+- Searching should match title, description, or author nickname.
+- Registering a new Cognito user should create a `registered_user` row through the post-registration Lambda.
+- Logged-in users can upload artwork with a title and description.
+- Uploaded artwork is searchable and linked to the user's nickname.
+
+## Useful Commands
+
+Reset and rebuild the database:
 
 ```bash
-pnpm run install:macos
+pnpm run database:reset
+pnpm run database:migrate
+pnpm run images:init
 ```
 
-### Step 4 - check the installation
-
-Open a new Terminal window and check Flyway:
+Deploy only the API:
 
 ```bash
-flyway -v
+pnpm run cdk:deploy:api
 ```
 
-To check pgAdmin, open it from the Applications folder or run:
+Run API security checks:
 
 ```bash
-open -a "pgAdmin 4"
+pnpm run api:test
 ```
 
-## What the scripts do
+Destroy everything:
 
-The Windows script:
-
-- confirms it is running on Windows
-- confirms `winget` is available
-- installs Flyway using the current Redgate Flyway package ID available to `winget`
-- installs pgAdmin using the `PostgreSQL.pgAdmin` package ID
-
-The Mac script:
-
-- confirms it is running on macOS
-- confirms Homebrew is available
-- runs `brew update`
-- installs the `flyway` Homebrew formula
-- installs the `pgadmin4` Homebrew cask
-
-You do not need to configure a database yet. This step only installs the tools.
+```bash
+pnpm run destroy-everything
+```

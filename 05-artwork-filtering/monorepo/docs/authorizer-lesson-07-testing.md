@@ -66,7 +66,6 @@ The root package exposes:
 
 ```json
 "api:test": "tsx scripts/src/api-test.ts",
-"api:bulk-image-upload": "tsx scripts/src/api-bulk-image-upload.ts",
 "cognito:get-token": "tsx scripts/src/cognito-get-token.ts",
 "cognito:test-users": "tsx scripts/src/ensure-cognito-test-users.ts"
 ```
@@ -134,7 +133,7 @@ GET /public/gallery-photos
 
 POST /auth/photos/presigned-url
   anonymous access fails
-  regular user access succeeds
+  regular user invalid request returns validation failure
 
 GET /auth/admin/member
   anonymous access fails
@@ -158,18 +157,16 @@ Lambda and Express route handling
 
 So a failure can reveal either an application bug or an infrastructure wiring bug.
 
-## Image Upload Script
+## Seed Image Script
 
-`pnpm run api:bulk-image-upload` uses the same token/test-user machinery to upload sample images through the protected API.
+`pnpm run images:init` uploads sample images through local AWS credentials and records them in the database as the stable `system` user.
 
-The upload flow is:
+The seed flow is:
 
 ```text
-Get admin ID token
-Delete existing photos through /auth/admin/photos
-Request presigned upload URLs through /auth/photos/presigned-url
-PUT image files to S3 using the presigned URLs
-Read /public/gallery-photos to count the uploaded images
+Read the image bucket name from SSM
+Upload fixed-key seed images to S3
+Upsert image metadata rows owned by registered_user.sub = system
 ```
 
 ## What This Lesson Teaches
