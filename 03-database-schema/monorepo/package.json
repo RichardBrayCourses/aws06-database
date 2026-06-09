@@ -21,6 +21,8 @@
     "cdk:destroy:rds": "pnpm -C cdk run cdk:destroy:rds",
     "cdk:deploy:api": "pnpm -C cdk run cdk:deploy:api",
     "cdk:destroy:api": "pnpm -C cdk run cdk:destroy:api",
+    "database:migrate": "tsx scripts/src/database-migrate.ts",
+    "database:reset": "tsx scripts/src/database-migrate.ts reset",
     "api:dev": "pnpm -C services/api run dev",
     "ui:dev": "pnpm -C apps/ui run dev",
     "ui:generate-env": "bash scripts/generate-ui-env.sh",
@@ -30,12 +32,13 @@
     "ui:url": "bash scripts/get-ui-url.sh",
     "invalidate-cloudfront": "bash scripts/invalidate-cloudfront.sh",
     "deploy-website": "pnpm run ui:build && pnpm run ui:upload && pnpm run invalidate-cloudfront",
-    "deploy-everything": "pnpm run cdk:deploy:website && pnpm run cdk:deploy:cognito && pnpm run cdk:deploy:images && pnpm run cdk:deploy:rds && pnpm run cdk:deploy:api && pnpm run ui:generate-env && pnpm run deploy-website",
+    "deploy-everything": "pnpm run cdk:deploy:website && pnpm run cdk:deploy:cognito && pnpm run cdk:deploy:images && pnpm run cdk:deploy:rds && pnpm run database:migrate && pnpm run cdk:deploy:api && pnpm run ui:generate-env && pnpm run deploy-website",
     "destroy-everything": "pnpm run cdk:destroy:api && pnpm run cdk:destroy:rds && pnpm run cdk:destroy:images && pnpm run cdk:destroy:cognito && pnpm run cdk:destroy:website",
     "type-check": "pnpm -r type-check ",
     "package-cleanup": "pnpm -r package-cleanup && rm -rf node_modules "
   },
   "devDependencies": {
+    "@types/pg": "^8.15.6",
     "@types/node": "^25.9.2",
     "esbuild": "0.27.7",
     "tsx": "4.21.0",
@@ -43,6 +46,8 @@
   },
   "dependencies": {
     "@aws-sdk/client-cognito-identity-provider": "^3.1063.0",
+    "@aws-sdk/client-secrets-manager": "^3.1063.0",
+    "pg": "^8.16.3",
     "@aws-sdk/client-ssm": "^3.1063.0"
   }
 }
