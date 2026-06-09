@@ -11,7 +11,7 @@ The app now stores and searches artwork metadata in RDS:
 - gallery cards show the author nickname
 - real user uploads still use protected Cognito routes
 
-This lesson also adds stable seed artwork.
+This lesson also adds stable seed artwork through a local seed script.
 
 ## Seed Artwork
 
@@ -22,7 +22,7 @@ sub = system
 nickname = system
 ```
 
-The seed script uploads local images to S3 and upserts database rows owned by `system`.
+The seed script uploads local images to S3 and upserts database rows owned by `system`. This is not a Cognito/API upload flow; it runs locally with AWS and RDS credentials.
 
 Run it with:
 
@@ -30,7 +30,7 @@ Run it with:
 pnpm run images:init
 ```
 
-This seed flow does not require a Cognito login. It runs locally using AWS and RDS credentials.
+There is no separate bulk upload command in this lesson. Use `images:init` whenever you want to refresh the seeded artwork.
 
 ## Run
 
@@ -45,7 +45,7 @@ pnpm run deploy-everything
 
 1. deploys the AWS stacks
 2. runs Flyway migrations
-3. seeds system artwork
+3. seeds system artwork with `images:init`
 4. deploys the API
 5. builds and uploads the UI
 
@@ -78,6 +78,10 @@ pnpm run database:reset
 pnpm run database:migrate
 pnpm run images:init
 ```
+
+After resetting the database, delete any existing users from the Cognito user pool in the AWS Management Console before testing registration again.
+
+This matters because `database:reset` removes rows from `registered_user`, but it does not delete Cognito users. Existing Cognito users will not automatically run the post-registration Lambda again, so they can have valid Cognito accounts without matching database rows.
 
 Deploy only the API:
 
