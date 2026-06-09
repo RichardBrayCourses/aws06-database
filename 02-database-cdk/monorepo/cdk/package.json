@@ -9,6 +9,8 @@
     "cdk:destroy:cognito": "cdk destroy cognito-stack --force --require-approval never --app \"tsx ./src/bin/cognito.ts\"",
     "cdk:deploy:images": "cdk deploy images-stack --require-approval never --app \"tsx ./src/bin/images.ts\"",
     "cdk:destroy:images": "cdk destroy images-stack --force --require-approval never --app \"tsx ./src/bin/images.ts\"",
+    "cdk:deploy:rds": "cdk deploy rds-stack --require-approval never --app \"tsx ./src/bin/rds.ts\"",
+    "cdk:destroy:rds": "cdk destroy rds-stack --force --require-approval never --app \"tsx ./src/bin/rds.ts\"",
     "cdk:deploy:api": "cdk deploy api-stack --require-approval never --app \"tsx ./src/bin/api.ts\"",
     "cdk:destroy:api": "cdk destroy api-stack --force --require-approval never --app \"tsx ./src/bin/api.ts\"",
     "type-check": "tsc --noEmit",
