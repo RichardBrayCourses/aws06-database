@@ -5,11 +5,16 @@ import {
   OAuthScope,
   UserPool,
 } from "aws-cdk-lib/aws-cognito";
+import { NodejsFunction } from "aws-cdk-lib/aws-lambda-nodejs";
 import { StringParameter } from "aws-cdk-lib/aws-ssm";
 import type { Construct } from "constructs";
 
+interface CognitoStackProps extends StackProps {
+  postConfirmationLambda: NodejsFunction;
+}
+
 export class CognitoStack extends Stack {
-  constructor(scope: Construct, id: string, props?: StackProps) {
+  constructor(scope: Construct, id: string, props: CognitoStackProps) {
     super(scope, id, props);
 
     const websiteDistributionUrl = StringParameter.valueForStringParameter(
@@ -28,6 +33,9 @@ export class CognitoStack extends Stack {
       signInAliases: { email: true },
       autoVerify: { email: true },
       selfSignUpEnabled: true,
+      lambdaTriggers: {
+        postConfirmation: props.postConfirmationLambda,
+      },
     });
 
     const userPoolDomain = userPool.addDomain("UserPoolDomain", {

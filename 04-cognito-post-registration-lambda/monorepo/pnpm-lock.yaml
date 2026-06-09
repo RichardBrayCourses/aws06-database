@@ -97,16 +97,31 @@ importers:
 
   cdk:
     dependencies:
+      '@aws-sdk/client-secrets-manager':
+        specifier: ^3.1063.0
+        version: 3.1063.0
+      '@aws-sdk/client-ssm':
+        specifier: ^3.1063.0
+        version: 3.1063.0
       aws-cdk-lib:
         specifier: 2.235.1
         version: 2.235.1(constructs@10.4.5)
       constructs:
         specifier: 10.4.5
         version: 10.4.5
+      pg:
+        specifier: ^8.16.3
+        version: 8.21.0
     devDependencies:
+      '@types/aws-lambda':
+        specifier: ^8.10.161
+        version: 8.10.161
       '@types/node':
         specifier: ^25.3.1
         version: 25.9.1
+      '@types/pg':
+        specifier: ^8.15.6
+        version: 8.20.0
       esbuild:
         specifier: 0.27.7
         version: 0.27.7
