@@ -11,7 +11,9 @@ The main changes are:
 - logged-in uploads now ask for a title and optional description
 - users can view their profile and update their nickname
 
-The API test script and bulk image upload script are intentionally unchanged from lesson 04. They do not yet understand the new upload metadata requirements. Lesson 06 updates those commands.
+Request-body handling in this lesson is deliberately minimal. The controllers pull values directly from `req.body` so the next lesson can focus on adding Zod validation as a clear incremental improvement.
+
+The API test script and bulk image upload script are intentionally unchanged from lesson 04. They do not yet understand the new upload metadata requirements. Lesson 07 updates those commands.
 
 ## Run
 
@@ -30,7 +32,7 @@ pnpm run api:bulk-image-upload
 pnpm run ui:url
 ```
 
-At this point, the test and bulk upload commands still represent the lesson 04 behaviour. The next lesson fixes them for the database-backed artwork flow.
+At this point, the test and bulk upload commands still represent the lesson 04 behaviour. Lesson 07 fixes them for the database-backed artwork flow.
 
 ## Expected Behaviour
 
@@ -86,19 +88,18 @@ const result = await client.query<PhotoRow>(
 );
 ```
 
-The presigned upload endpoint now expects metadata before it creates the S3 URL. This validation keeps the API aligned with the database column sizes:
+The presigned upload endpoint now expects metadata before it creates the S3 URL. In this lesson, the controller keeps the request-body handling as short as possible:
 
 ```ts
-if (typeof payload.imageName !== "string") {
-  throw new Error("Image title is required.");
-}
-
-const imageName = payload.imageName.trim();
-if (!imageName) throw new Error("Image title is required.");
-if (imageName.length > 40) {
-  throw new Error("Image title must be 40 characters or less.");
-}
+const body = req.body ?? {};
+const imageName = String(body.imageName ?? "").trim();
+const imageDescription = body.imageDescription
+  ? String(body.imageDescription).trim()
+  : null;
+const contentType = String(body.contentType ?? "image/jpeg");
 ```
+
+That is intentionally not robust validation. Lesson 06 replaces this simple extraction with Zod schemas.
 
 After the API creates a UUID filename for S3, it inserts the metadata into the `images` table:
 
@@ -186,4 +187,4 @@ setProfile(nextProfile);
 setNickname(nextProfile.nickname ?? "");
 ```
 
-One important teaching detail: the old `api:test` and `api:bulk-image-upload` scripts are deliberately left in their lesson 04 state. They do not yet understand that uploads need metadata, so they are fixed in lesson 06.
+One important teaching detail: the old `api:test` and `api:bulk-image-upload` scripts are deliberately left in their lesson 04 state. They do not yet understand that uploads need metadata, so they are fixed in lesson 07.

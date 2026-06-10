@@ -1,4 +1,5 @@
 import type { Request, Response } from "express";
+import { z } from "zod";
 import { createDbClient } from "../database/db";
 import { getUserBySub, updateUserNickname } from "../database/userRepository";
 import type { AuthUser } from "../middleware/auth";
@@ -25,9 +26,21 @@ export async function getCurrentUser(req: Request, res: Response) {
 }
 
 export async function updateCurrentUserNickname(req: Request, res: Response) {
-  const body = req.body ?? {};
-  const nickname =
-    typeof body.nickname === "string" ? body.nickname.trim() || null : null;
+  let nickname: string | null;
+
+  try {
+    const body = req.body ?? {};
+    nickname = updateNicknameSchema.parse(body).nickname;
+  } catch (error) {
+    res.status(400).json({
+      error:
+        error instanceof z.ZodError
+          ? getZodErrorMessage(error, "Invalid nickname.")
+          : "Invalid nickname.",
+    });
+    return;
+  }
+
   const auth = getAuth(req);
   let client: Awaited<ReturnType<typeof createDbClient>> | undefined;
 
@@ -48,6 +61,21 @@ export async function updateCurrentUserNickname(req: Request, res: Response) {
   }
 }
 
+const updateNicknameSchema = z.object({
+  // Zod validates first, then transform lets us shape the value the app wants.
+  nickname: z
+    .string({ error: "Nickname must be a string or null." })
+    .trim()
+    .max(20, "Nickname must be 20 characters or less.")
+    .nullable()
+    .optional()
+    .transform((nickname) => nickname || null),
+});
+
 function getAuth(req: Request) {
   return (req as any).auth as AuthUser;
+}
+
+function getZodErrorMessage(error: z.ZodError, fallback: string) {
+  return error.issues[0]?.message ?? fallback;
 }

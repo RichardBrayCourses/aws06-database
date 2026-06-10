@@ -7,6 +7,7 @@ import {
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import type { Request, Response } from "express";
 import { randomUUID } from "node:crypto";
+import { z } from "zod";
 import type { GetPhotosResponse, PhotoData } from "../types";
 import { createDbClient } from "../database/db";
 import {
@@ -22,12 +23,9 @@ export async function getPresignedUrl(req: Request, res: Response) {
     if (!bucketName) return;
 
     const auth = (req as any).auth as AuthUser;
-    const body = req.body ?? {};
-    const imageName = String(body.imageName ?? "").trim();
-    const imageDescription = body.imageDescription
-      ? String(body.imageDescription).trim()
-      : null;
-    const contentType = String(body.contentType ?? "image/jpeg");
+    const body = req.body && typeof req.body === "object" ? req.body : {};
+    const { imageName, imageDescription, contentType } =
+      uploadBodySchema.parse(body);
     const uuidFilename = randomUUID();
 
     const uploadUrl = await getSignedUrl(
@@ -55,6 +53,13 @@ export async function getPresignedUrl(req: Request, res: Response) {
 
     res.json({ uploadUrl, uuidFilename });
   } catch (error) {
+    if (error instanceof z.ZodError) {
+      res
+        .status(400)
+        .json({ error: getZodErrorMessage(error, "Invalid upload details.") });
+      return;
+    }
+
     res.status(500).json({ error: "Could not create upload URL" });
   }
 }
@@ -149,6 +154,26 @@ export async function deletePhotos(_req: Request, res: Response) {
 
 const s3Client = new S3Client();
 
+const uploadBodySchema = z.object({
+  imageName: z
+    .string({ error: "Image title is required." })
+    .trim()
+    .min(1, "Image title is required.")
+    .max(40, "Image title must be 40 characters or less."),
+  imageDescription: z
+    .preprocess(
+      (value) => (value === undefined ? null : value),
+      z
+        .string({ error: "Image description must be a string or null." })
+        .trim()
+        .max(120, "Image description must be 120 characters or less.")
+        .nullable(),
+    )
+    .transform((description) => description || null),
+  // .catch() is a simple way to provide a fallback when parsing fails.
+  contentType: z.string().startsWith("image/").catch("image/jpeg"),
+});
+
 function getBucketName(res: Response): string | null {
   const bucketName = process.env.IMAGES_BUCKET_NAME;
 
@@ -162,4 +187,8 @@ function getBucketName(res: Response): string | null {
 
 function removeTrailingSlash(url: string) {
   return url.replace(/\/$/, "");
+}
+
+function getZodErrorMessage(error: z.ZodError, fallback: string) {
+  return error.issues[0]?.message ?? fallback;
 }
