@@ -6,13 +6,7 @@ Deploy everything:
 pnpm run deploy-everything
 ```
 
-Create or update the Cognito test users:
-
-```bash
-pnpm run cognito:test-users
-```
-
-Run the tests:
+Run the tests. This creates or updates the Cognito test users before calling the API:
 
 ```bash
 pnpm run api:test

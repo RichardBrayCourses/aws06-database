@@ -8,8 +8,6 @@
     "bootstrap-up": "pnpm -C scripts run bootstrap-up",
     "bootstrap-down": "pnpm -C scripts run bootstrap-down",
     "api:test": "tsx scripts/src/api-test.ts",
-    "cognito:get-token": "tsx scripts/src/cognito-get-token.ts",
-    "cognito:test-users": "tsx scripts/src/ensure-cognito-test-users.ts",
     "cdk:deploy:website": "pnpm -C cdk run cdk:deploy:website",
     "cdk:destroy:website": "pnpm -C cdk run cdk:destroy:website",
     "cdk:deploy:cognito": "pnpm -C cdk run cdk:deploy:cognito",

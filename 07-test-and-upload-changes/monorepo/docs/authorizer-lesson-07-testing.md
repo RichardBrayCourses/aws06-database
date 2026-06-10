@@ -65,9 +65,7 @@ scripts/src
 The root package exposes:
 
 ```json
-"api:test": "tsx scripts/src/api-test.ts",
-"cognito:get-token": "tsx scripts/src/cognito-get-token.ts",
-"cognito:test-users": "tsx scripts/src/ensure-cognito-test-users.ts"
+"api:test": "tsx scripts/src/api-test.ts"
 ```
 
 The scripts use SSM parameters to discover the deployed API and Cognito resources:
