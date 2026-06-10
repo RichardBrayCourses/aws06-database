@@ -12,11 +12,11 @@ type DbCredentials = {
 const DEFAULT_DATABASE_NAME = "uptickart";
 const secretsClient = new SecretsManagerClient({});
 
-function getDatabaseName() {
+export function getDatabaseName() {
   return process.env.CDK_DATABASE_NAME ?? DEFAULT_DATABASE_NAME;
 }
 
-async function getRdsCredentials() {
+export async function getRdsCredentials() {
   const secretArn = await getParameter("/rds/secret-arn");
   const secretValue = await secretsClient.send(
     new GetSecretValueCommand({ SecretId: secretArn }),

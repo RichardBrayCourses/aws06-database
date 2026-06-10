@@ -20,6 +20,7 @@
     "cdk:destroy:api": "pnpm -C cdk run cdk:destroy:api",
     "database:migrate": "tsx scripts/src/database-migrate.ts",
     "database:reset": "tsx scripts/src/database-migrate.ts reset",
+    "database:show-secret": "tsx scripts/src/database-show-secret.ts",
     "images:init": "tsx scripts/src/init-images.ts",
     "api:dev": "pnpm -C services/api run dev",
     "ui:dev": "pnpm -C apps/ui run dev",
