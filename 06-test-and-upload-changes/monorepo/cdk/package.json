@@ -1,0 +1,34 @@
+{
+  "name": "@root/cdk",
+  "private": true,
+  "version": "0.0.1",
+  "scripts": {
+    "cdk:deploy:website": "cdk deploy website-stack --require-approval never --app \"tsx ./src/bin/website.ts\"",
+    "cdk:destroy:website": "cdk destroy website-stack --force --require-approval never --app \"tsx ./src/bin/website.ts\"",
+    "cdk:deploy:cognito": "cdk deploy cognito-post-confirmation-stack cognito-stack --require-approval never --app \"tsx ./src/bin/cognito.ts\"",
+    "cdk:destroy:cognito": "cdk destroy cognito-stack cognito-post-confirmation-stack --force --require-approval never --app \"tsx ./src/bin/cognito.ts\"",
+    "cdk:deploy:images": "cdk deploy images-stack --require-approval never --app \"tsx ./src/bin/images.ts\"",
+    "cdk:destroy:images": "cdk destroy images-stack --force --require-approval never --app \"tsx ./src/bin/images.ts\"",
+    "cdk:deploy:rds": "cdk deploy rds-stack --require-approval never --app \"tsx ./src/bin/rds.ts\"",
+    "cdk:destroy:rds": "cdk destroy rds-stack --force --require-approval never --app \"tsx ./src/bin/rds.ts\"",
+    "cdk:deploy:api": "cdk deploy api-stack --require-approval never --app \"tsx ./src/bin/api.ts\"",
+    "cdk:destroy:api": "cdk destroy api-stack --force --require-approval never --app \"tsx ./src/bin/api.ts\"",
+    "type-check": "tsc --noEmit",
+    "package-cleanup": "rm -rf node_modules cdk.out"
+  },
+  "dependencies": {
+    "@aws-sdk/client-secrets-manager": "^3.1063.0",
+    "@aws-sdk/client-ssm": "^3.1063.0",
+    "aws-cdk-lib": "2.235.1",
+    "constructs": "10.4.5",
+    "pg": "^8.16.3"
+  },
+  "devDependencies": {
+    "@types/aws-lambda": "^8.10.161",
+    "@types/node": "^25.3.1",
+    "@types/pg": "^8.15.6",
+    "esbuild": "0.27.7",
+    "tsx": "4.21.0",
+    "typescript": "5.9.3"
+  }
+}

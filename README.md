@@ -169,3 +169,103 @@ The Mac script:
 - installs the `pgadmin4` Homebrew cask
 
 You do not need to configure a database yet. This step only installs the tools.
+
+## API Endpoint Reference
+
+The deployed API is split into two API Gateway zones:
+
+```text
+/public/{proxy+}
+  Anonymous access allowed
+
+/auth/{proxy+}
+  Cognito authentication required
+```
+
+The Express app is mounted behind both zones. The Lambda adapter passes only the proxy part of the path to Express, so deployed `GET /public/health` is handled by the Express `/health` route, and deployed `GET /auth/users/me` is handled by the Express `/users/me` route.
+
+Current endpoints:
+
+```text
+GET    /public/health
+GET    /public/gallery-photos
+POST   /auth/photos/presigned-url
+GET    /auth/users/me
+PUT    /auth/users/me/nickname
+GET    /auth/admin/member
+DELETE /auth/admin/photos
+```
+
+Protection summary:
+
+```text
+Public:
+GET /public/health
+GET /public/gallery-photos
+
+Any signed-in Cognito user:
+POST /auth/photos/presigned-url
+GET /auth/users/me
+PUT /auth/users/me/nickname
+
+Signed-in Cognito user in the administrators group:
+GET /auth/admin/member
+DELETE /auth/admin/photos
+```
+
+API Gateway rejects unauthenticated calls to `/auth/*` before they reach Lambda. Express then uses `attachAuth` and `requireAuth` as an application-level guard for the protected routes, and `requireGroup("administrators")` adds the administrator-only check for `/auth/admin/*`.
+
+`requireAuth` is not attached to each route individually. It is installed globally in `services/api/src/app.ts`, and the order of the Express middleware is what decides which routes it protects:
+
+```ts
+app.use(publicRoutes);
+app.use(attachAuth, requireAuth);
+app.use("/photos", photoRoutes);
+app.use("/users", userRoutes);
+app.use("/admin", requireGroup("administrators"), administratorRoutes);
+```
+
+That means:
+
+- `publicRoutes` runs before `requireAuth`, so `/health` and `/gallery-photos` remain public.
+- `attachAuth` and `requireAuth` run before the protected route groups, so every route mounted after them requires `req.auth`.
+- `/photos` and `/users` are available to any signed-in Cognito user.
+- `/admin` requires a signed-in Cognito user and the `administrators` Cognito group.
+
+## API Protection Tests
+
+Run the deployed API security checks from the current lesson folder with:
+
+```bash
+pnpm run api:test
+```
+
+The test script reads the deployed API and Cognito configuration from SSM, creates or reuses test users, obtains Cognito ID tokens, and calls the API through API Gateway.
+
+The latest version checks that:
+
+```text
+GET /public/health
+  anonymous access succeeds
+
+GET /public/gallery-photos
+  anonymous access succeeds
+
+POST /auth/photos/presigned-url
+  anonymous access fails
+  regular user access reaches request validation
+
+GET /auth/users/me
+  anonymous access fails
+  regular user access succeeds
+
+GET /auth/admin/member
+  anonymous access fails
+  regular user access fails
+  administrator access succeeds
+
+DELETE /auth/admin/photos
+  regular user access fails
+```
+
+These are deployed integration checks rather than isolated Express unit tests, so they verify the API Gateway routes, Cognito authorizer, Cognito group claims, Lambda adapter, and Express route protection together.

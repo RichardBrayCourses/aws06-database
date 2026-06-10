@@ -28,20 +28,9 @@ async function main() {
       expectedStatus: 401,
     },
     {
-      name: "photo upload URL validates regular user request body",
+      name: "photo upload URL allows regular user",
       method: "POST",
       path: "/auth/photos/presigned-url",
-      token: userToken,
-      expectedStatus: 400,
-    },
-    {
-      name: "profile rejects anonymous access",
-      path: "/auth/users/me",
-      expectedStatus: 401,
-    },
-    {
-      name: "profile allows regular user",
-      path: "/auth/users/me",
       token: userToken,
       expectedStatus: 200,
     },

@@ -1,12 +1,10 @@
 import {
   AdminAddUserToGroupCommand,
-  AdminConfirmSignUpCommand,
-  AdminDeleteUserCommand,
+  AdminCreateUserCommand,
   AdminGetUserCommand,
   AdminInitiateAuthCommand,
-  AdminUpdateUserAttributesCommand,
+  AdminSetUserPasswordCommand,
   CognitoIdentityProviderClient,
-  SignUpCommand,
 } from "@aws-sdk/client-cognito-identity-provider";
 import { getCognitoConfig } from "./ssm";
 import { getTestUsers, type TestUserConfig, type TestUserRole } from "./testUsers";
@@ -23,40 +21,39 @@ function isAwsError(error: unknown, name: string) {
 }
 
 export async function ensureTestUser(user: TestUserConfig) {
-  const { clientId, userPoolId } = await getCognitoConfig();
+  const { userPoolId } = await getCognitoConfig();
 
   try {
-    await cognitoClient.send(new AdminDeleteUserCommand({
-      UserPoolId: userPoolId,
-      Username: user.email,
-    }));
+    await cognitoClient.send(
+      new AdminGetUserCommand({
+        UserPoolId: userPoolId,
+        Username: user.email,
+      }),
+    );
   } catch (error) {
     if (!isAwsError(error, "UserNotFoundException")) {
       throw error;
     }
+
+    await cognitoClient.send(
+      new AdminCreateUserCommand({
+        UserPoolId: userPoolId,
+        Username: user.email,
+        MessageAction: "SUPPRESS",
+        UserAttributes: [
+          { Name: "email", Value: user.email },
+          { Name: "email_verified", Value: "true" },
+        ],
+      }),
+    );
   }
 
   await cognitoClient.send(
-    new SignUpCommand({
-      ClientId: clientId,
+    new AdminSetUserPasswordCommand({
+      UserPoolId: userPoolId,
       Username: user.email,
       Password: user.password,
-      UserAttributes: [{ Name: "email", Value: user.email }],
-    }),
-  );
-
-  await cognitoClient.send(
-    new AdminConfirmSignUpCommand({
-      UserPoolId: userPoolId,
-      Username: user.email,
-    }),
-  );
-
-  await cognitoClient.send(
-    new AdminUpdateUserAttributesCommand({
-      UserPoolId: userPoolId,
-      Username: user.email,
-      UserAttributes: [{ Name: "email_verified", Value: "true" }],
+      Permanent: true,
     }),
   );
 
