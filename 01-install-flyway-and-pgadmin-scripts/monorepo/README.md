@@ -169,3 +169,83 @@ The Mac script:
 - installs the `pgadmin4` Homebrew cask
 
 You do not need to configure a database yet. This step only installs the tools.
+
+## Code Changes In This Lesson
+
+This lesson adds two small installer scripts. They do not change the web application yet; their job is to make sure the database tools used in later lessons are available on the developer's machine.
+
+The macOS script lives at `scripts/install-flyway-and-pgadmin-macos.sh`. It first checks that it is running on macOS and that Homebrew is installed:
+
+```bash
+if [[ "$(uname -s)" != "Darwin" ]]; then
+    echo "This script is designed for macOS only."
+    exit 1
+fi
+
+if ! command -v brew >/dev/null 2>&1; then
+    echo "Homebrew is required. Install it from https://brew.sh/ and run this script again."
+    exit 1
+fi
+```
+
+The tools are then described as simple arrays. This makes the script easy to extend later if the course needs another database utility:
+
+```bash
+formulas=(
+    flyway
+)
+
+casks=(
+    pgadmin4
+)
+```
+
+Finally, the script loops over the arrays and installs each item:
+
+```bash
+for formula in "${formulas[@]}"; do
+    echo "Installing $formula..."
+    brew install "$formula" --quiet
+done
+```
+
+The Windows script lives at `scripts/install-flyway-and-pgadmin-windows.ps1`. It performs the same job, but uses `winget` instead of Homebrew. The script allows for several possible Flyway package IDs because the package name has changed over time:
+
+```powershell
+$packages = @(
+    @{
+        Name = "Flyway"
+        IdCandidates = @(
+            "Redgate.Flyway",
+            "RedGate.Flyway",
+            "Redgate.FlywayDesktop",
+            "RedGate.FlywayDesktop"
+        )
+    },
+    @{
+        Name = "pgAdmin"
+        IdCandidates = @("PostgreSQL.pgAdmin")
+    }
+)
+```
+
+Each package is installed by trying the configured IDs until one works:
+
+```powershell
+foreach ($id in $package.IdCandidates) {
+    winget show --exact --id $id --accept-source-agreements | Out-Null
+
+    if ($LASTEXITCODE -ne 0) {
+        continue
+    }
+
+    winget install --exact --id $id --accept-source-agreements --accept-package-agreements
+}
+```
+
+The root `package.json` exposes these scripts through pnpm commands, so learners can either run the scripts directly or use the package scripts:
+
+```json
+"install:macos": "bash scripts/install-flyway-and-pgadmin-macos.sh",
+"install:windows": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/install-flyway-and-pgadmin-windows.ps1"
+```

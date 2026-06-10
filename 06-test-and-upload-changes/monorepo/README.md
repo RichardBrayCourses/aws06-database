@@ -135,3 +135,121 @@ Destroy everything:
 ```bash
 pnpm run destroy-everything
 ```
+
+## Code Changes In This Lesson
+
+This lesson fixes the supporting scripts now that artwork uploads are database-backed. Lesson 05 changed the API shape; this lesson updates the seed data and API checks to match.
+
+The first change is a new migration, `database/sql/V5__Create_system_user.sql`. It creates a stable user that can own seeded artwork:
+
+```sql
+INSERT INTO registered_user (sub, email, nickname)
+VALUES ('system', 'system@example.com', 'system')
+ON CONFLICT (sub) DO UPDATE
+SET email = EXCLUDED.email,
+    nickname = EXCLUDED.nickname;
+```
+
+The old bulk upload script used the protected upload API. That no longer works well for seed data because the upload flow now depends on a real Cognito user and image metadata. The replacement script is `scripts/src/init-images.ts`.
+
+It reads the image bucket name from SSM and reads local files from `photos-to-upload`:
+
+```ts
+const bucketName = await getParameter("/images/bucket-name");
+const photosDir = resolve(process.env.PHOTOS_DIR ?? "../../photos-to-upload");
+const photoNames = (await readdir(photosDir))
+  .filter((name) => !name.startsWith("."))
+  .sort();
+```
+
+Before seeding images, the script upserts the `system` user. This mirrors the migration and makes the script safe to run repeatedly:
+
+```ts
+await client.query(
+  `INSERT INTO registered_user (sub, email, nickname)
+   VALUES ($1, $2, $3)
+   ON CONFLICT (sub) DO UPDATE
+   SET email = EXCLUDED.email,
+       nickname = EXCLUDED.nickname`,
+  [SYSTEM_USER_SUB, "system@example.com", "system"],
+);
+```
+
+Each local image is uploaded to S3 with a stable generated key:
+
+```ts
+const key = keyFor(photoName, index);
+const title = titleFor(photoName);
+const contentType = contentTypeFor(photoName);
+const body = await readFile(join(photosDir, photoName));
+
+await s3Client.send(
+  new PutObjectCommand({
+    Bucket: bucketName,
+    Key: key,
+    Body: body,
+    ContentType: contentType,
+  }),
+);
+```
+
+The script then upserts the matching row in `images`. This is the database-backed part of the seed process:
+
+```ts
+await client.query(
+  `INSERT INTO images (sub, uuid_filename, image_name, image_description, created_at)
+   VALUES ($1, $2, $3, $4, NOW())
+   ON CONFLICT (uuid_filename) DO UPDATE
+   SET sub = EXCLUDED.sub,
+       image_name = EXCLUDED.image_name,
+       image_description = EXCLUDED.image_description`,
+  [SYSTEM_USER_SUB, key, title, DEFAULT_DESCRIPTION],
+);
+```
+
+The root package scripts are updated so seeding is part of a full deployment:
+
+```json
+"images:init": "tsx scripts/src/init-images.ts",
+"deploy-everything": "pnpm run cdk:deploy:website && pnpm run cdk:deploy:cognito && pnpm run cdk:deploy:images && pnpm run cdk:deploy:rds && pnpm run database:migrate && pnpm run images:init && pnpm run cdk:deploy:api && pnpm run ui:generate-env && pnpm run deploy-website"
+```
+
+The API test script is also updated. It now checks the profile endpoints and expects the metadata-aware upload endpoint to reject an incomplete regular-user request:
+
+```ts
+{
+  name: "photo upload URL validates regular user request body",
+  method: "POST",
+  path: "/auth/photos/presigned-url",
+  token: userToken,
+  expectedStatus: 400,
+},
+{
+  name: "profile allows regular user",
+  path: "/auth/users/me",
+  token: userToken,
+  expectedStatus: 200,
+},
+```
+
+Finally, the Cognito test-user helper changes how it creates test accounts. Instead of only creating users administratively, it deletes and signs them up again so the post-confirmation trigger runs and creates matching `registered_user` rows:
+
+```ts
+await cognitoClient.send(
+  new SignUpCommand({
+    ClientId: clientId,
+    Username: user.email,
+    Password: user.password,
+    UserAttributes: [{ Name: "email", Value: user.email }],
+  }),
+);
+
+await cognitoClient.send(
+  new AdminConfirmSignUpCommand({
+    UserPoolId: userPoolId,
+    Username: user.email,
+  }),
+);
+```
+
+That means `pnpm run api:test` now exercises the deployed API, the Cognito authorizer, the Cognito groups, the post-confirmation Lambda, and the database-backed profile route together.

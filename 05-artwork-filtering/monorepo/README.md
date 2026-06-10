@@ -59,3 +59,131 @@ Destroy everything:
 ```bash
 pnpm run destroy-everything
 ```
+
+## Code Changes In This Lesson
+
+This lesson turns the gallery from an S3 object listing into a database-backed artwork gallery. The image file still lives in S3, but the title, description, owner, and search data live in RDS.
+
+The API now has a small database layer in `services/api/src/database`. The photo repository joins `images` to `registered_user` so gallery cards can include the uploader nickname:
+
+```ts
+const result = await client.query<PhotoRow>(
+  `SELECT i.id,
+          i.sub,
+          i.uuid_filename,
+          i.image_name,
+          i.image_description,
+          u.nickname AS author_nickname,
+          i.created_at
+     FROM images i
+     LEFT JOIN registered_user u ON i.sub = u.sub
+    WHERE $1 = ''
+       OR i.image_name ILIKE '%' || $1 || '%'
+       OR COALESCE(i.image_description, '') ILIKE '%' || $1 || '%'
+       OR COALESCE(u.nickname, '') ILIKE '%' || $1 || '%'
+    ORDER BY i.created_at DESC`,
+  [term],
+);
+```
+
+The presigned upload endpoint now expects metadata before it creates the S3 URL. This validation keeps the API aligned with the database column sizes:
+
+```ts
+if (typeof payload.imageName !== "string") {
+  throw new Error("Image title is required.");
+}
+
+const imageName = payload.imageName.trim();
+if (!imageName) throw new Error("Image title is required.");
+if (imageName.length > 40) {
+  throw new Error("Image title must be 40 characters or less.");
+}
+```
+
+After the API creates a UUID filename for S3, it inserts the metadata into the `images` table:
+
+```ts
+const uuidFilename = randomUUID();
+
+await insertPhoto(client, {
+  sub: auth.sub,
+  uuidFilename,
+  imageName,
+  imageDescription,
+});
+```
+
+The gallery endpoint no longer asks S3 for a list of objects. Instead, it reads database rows and uses the CloudFront URL to build image URLs:
+
+```ts
+const rows = await listPhotos(client, search);
+const photoData: PhotoData[] = rows.map((photo) => {
+  const encodedKey = encodeURIComponent(photo.uuid_filename);
+  const url = `${cloudfrontBase}/${encodedKey}`;
+
+  return {
+    id: String(photo.id),
+    title: photo.image_name,
+    description: photo.image_description ?? "",
+    authorNickname: photo.author_nickname,
+    small: url,
+    large: url,
+  };
+});
+```
+
+There is also a new user controller. It lets a signed-in user read their profile and update their nickname:
+
+```ts
+export async function updateCurrentUserNickname(req: Request, res: Response) {
+  const auth = getAuth(req);
+  const user = await updateUserNickname(client, auth.sub, nickname);
+
+  if (!user) {
+    res.status(404).json({ error: "User not found" });
+    return;
+  }
+
+  res.json({ user });
+}
+```
+
+The Express app mounts those routes after `attachAuth` and `requireAuth`, so they are only available to signed-in users:
+
+```ts
+app.use(publicRoutes);
+app.use(attachAuth, requireAuth);
+app.use("/photos", photoRoutes);
+app.use("/users", userRoutes);
+app.use("/admin", requireGroup("administrators"), administratorRoutes);
+```
+
+On the frontend, the upload page now collects the artwork title and description before sending the file:
+
+```tsx
+await uploadPhoto(
+  selectedFile,
+  imageName.trim(),
+  imageDescription.trim() || null,
+);
+```
+
+The gallery page passes the search text to the API and shows the author nickname when one is available:
+
+```tsx
+const photos = await listPhotos(searchText);
+
+{photo.authorNickname && (
+  <div className="text-white/80 text-xs">by {photo.authorNickname}</div>
+)}
+```
+
+The profile page calls the new profile endpoints so users can edit the nickname that appears on gallery cards:
+
+```tsx
+const nextProfile = await updateNickname(nickname.trim() || null);
+setProfile(nextProfile);
+setNickname(nextProfile.nickname ?? "");
+```
+
+One important teaching detail: the old `api:test` and `api:bulk-image-upload` scripts are deliberately left in their lesson 04 state. They do not yet understand that uploads need metadata, so they are fixed in lesson 06.
