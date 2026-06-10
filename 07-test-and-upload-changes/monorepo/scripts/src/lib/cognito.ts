@@ -2,14 +2,13 @@ import {
   AdminAddUserToGroupCommand,
   AdminConfirmSignUpCommand,
   AdminDeleteUserCommand,
-  AdminGetUserCommand,
   AdminInitiateAuthCommand,
   AdminUpdateUserAttributesCommand,
   CognitoIdentityProviderClient,
   SignUpCommand,
 } from "@aws-sdk/client-cognito-identity-provider";
 import { getCognitoConfig } from "./ssm";
-import { getTestUsers, type TestUserConfig, type TestUserRole } from "./testUsers";
+import { getTestUsers, type TestUserConfig } from "./testUsers";
 
 const cognitoClient = new CognitoIdentityProviderClient({});
 
@@ -99,11 +98,4 @@ export async function getIdToken(user: TestUserConfig) {
   }
 
   return idToken;
-}
-
-export async function getTestUserToken(role: TestUserRole) {
-  const users = getTestUsers();
-  const user = users[role];
-  await ensureTestUser(user);
-  return getIdToken(user);
 }
