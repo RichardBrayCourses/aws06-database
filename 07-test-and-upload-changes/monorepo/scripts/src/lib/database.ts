@@ -43,3 +43,49 @@ export async function createDbClient() {
   await client.connect();
   return client;
 }
+
+export async function deleteRegisteredUsersByEmail(emails: string[]) {
+  const client = await createDbClient();
+
+  try {
+    await client.query(
+      "DELETE FROM registered_user WHERE email = ANY($1::text[])",
+      [emails],
+    );
+  } finally {
+    await client.end();
+  }
+}
+
+function sleep(ms: number) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+export async function waitForRegisteredUserBySub(sub: string, email: string) {
+  const timeoutMs = 30_000;
+  const intervalMs = 1_000;
+  const deadline = Date.now() + timeoutMs;
+
+  while (Date.now() < deadline) {
+    const client = await createDbClient();
+
+    try {
+      const result = await client.query(
+        "SELECT 1 FROM registered_user WHERE sub = $1",
+        [sub],
+      );
+
+      if (result.rowCount && result.rowCount > 0) {
+        return;
+      }
+    } finally {
+      await client.end();
+    }
+
+    await sleep(intervalMs);
+  }
+
+  throw new Error(
+    `No database row for ${email} after ${timeoutMs / 1000}s. Check the post-confirmation Lambda.`,
+  );
+}

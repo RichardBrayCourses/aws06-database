@@ -1,34 +1,13 @@
 # Lesson 07 - Test And Upload Changes
 
-This lesson builds on the Zod implementation from lesson 06 and updates the API testing and image-loading commands for the database-backed artwork flow.
+This lesson builds on lesson 06 and fixes the supporting scripts for the database-backed artwork flow.
 
 The main changes are:
 
-- API tests now include the profile endpoints added in lesson 05
-- the presigned URL test now expects Zod request validation, because uploads require metadata
-- Cognito test users are recreated through sign-up and confirmation so the post-confirmation Lambda inserts matching database rows
-- the old API bulk upload command is replaced with a database-aware seed command
+- the old `api:bulk-image-upload` command is replaced with `images:init`
 - `deploy-everything` now seeds artwork before deploying the API and UI
-- the Zod request-body schemas from lesson 06 are included in the API controllers
-
-## Seed Artwork
-
-Flyway migration `V5__Create_system_user.sql` creates a stable database user for seed artwork:
-
-```text
-sub = system
-nickname = system
-```
-
-The seed script uploads local images to S3 and upserts database rows owned by `system`. This is not a Cognito/API upload flow; it runs locally with AWS and RDS credentials.
-
-Run it with:
-
-```bash
-pnpm run images:init
-```
-
-There is no separate bulk upload command in this lesson. Use `images:init` whenever you want to refresh the seeded artwork.
+- `api:test` now checks the profile route and Zod upload validation
+- `api:test` resets its Cognito test users on every run so the post-confirmation Lambda creates fresh database rows
 
 ## Run
 
@@ -51,59 +30,19 @@ After deployment:
 
 ```bash
 pnpm run api:test
+pnpm run ui:url
 ```
 
-Then open the CloudFront UI:
+To refresh seed artwork without a full deploy:
 
 ```bash
-pnpm run ui:url
+pnpm run images:init
 ```
 
 ## Expected Behaviour
 
-- The public gallery should show seeded system artwork.
-- Searching should match title, description, or author nickname.
-- Registering a new Cognito user should create a `registered_user` row through the post-registration Lambda.
-- Logged-in users can upload artwork with a title and description.
-- Uploaded artwork is searchable and linked to the user's nickname.
-
-## Testing Endpoint Protection
-
-Run the deployed API security checks with:
-
-```bash
-pnpm run api:test
-```
-
-The test script reads the deployed API and Cognito configuration from SSM, creates or reuses test users, obtains Cognito ID tokens, and calls the API through API Gateway.
-
-It checks that:
-
-```text
-GET /public/health
-  anonymous access succeeds
-
-GET /public/gallery-photos
-  anonymous access succeeds
-
-POST /auth/photos/presigned-url
-  anonymous access fails
-  regular user access reaches request validation
-
-GET /auth/users/me
-  anonymous access fails
-  regular user access succeeds
-
-GET /auth/admin/member
-  anonymous access fails
-  regular user access fails
-  administrator access succeeds
-
-DELETE /auth/admin/photos
-  regular user access fails
-```
-
-These are deployed integration checks rather than isolated Express unit tests, so they verify the API Gateway routes, Cognito authorizer, Cognito group claims, Lambda adapter, and Express route protection together.
+- The public gallery shows seeded system artwork.
+- `pnpm run api:test` passes.
 
 ## Useful Commands
 
@@ -115,20 +54,14 @@ pnpm run database:migrate
 pnpm run images:init
 ```
 
-After resetting the database, delete any existing users from the Cognito user pool in the AWS Management Console before testing registration again.
+After resetting the database, delete any real Cognito users you created through the UI before testing registration again.
 
-This matters because `database:reset` removes rows from `registered_user`, but it does not delete Cognito users. Existing Cognito users will not automatically run the post-registration Lambda again, so they can have valid Cognito accounts without matching database rows.
+`database:reset` removes rows from `registered_user`, but it does not delete Cognito users. `pnpm run api:test` handles this automatically for its own test users.
 
 Deploy only the API:
 
 ```bash
 pnpm run cdk:deploy:api
-```
-
-Run API security checks:
-
-```bash
-pnpm run api:test
 ```
 
 Destroy everything:
@@ -139,7 +72,7 @@ pnpm run destroy-everything
 
 ## Code Changes In This Lesson
 
-This lesson fixes the supporting scripts now that artwork uploads are database-backed. Lesson 05 changed the API shape, lesson 06 added Zod validation, and this lesson updates the seed data and API checks to match.
+This lesson replaces the old bulk upload command with a database-aware seed script and updates the API test helper for the lesson 05 and lesson 06 API changes.
 
 The first change is a new migration, `database/sql/V5__Create_system_user.sql`. It creates a stable user that can own seeded artwork:
 
@@ -151,19 +84,14 @@ SET email = EXCLUDED.email,
     nickname = EXCLUDED.nickname;
 ```
 
-The old bulk upload script used the protected upload API. That no longer works well for seed data because the upload flow now depends on a real Cognito user and image metadata. The replacement script is `scripts/src/init-images.ts`.
-
-It reads the image bucket name from SSM and reads local files from `photos-to-upload`:
+The replacement seed script is `scripts/src/init-images.ts`. It reads the image bucket name from SSM, reads local files from `photos-to-upload`, uploads them to S3, and upserts matching rows in `images`:
 
 ```ts
 const bucketName = await getParameter("/images/bucket-name");
 const photosDir = resolve(process.env.PHOTOS_DIR ?? "../../photos-to-upload");
-const photoNames = (await readdir(photosDir))
-  .filter((name) => !name.startsWith("."))
-  .sort();
 ```
 
-Before seeding images, the script upserts the `system` user. This mirrors the migration and makes the script safe to run repeatedly:
+Before seeding images, the script upserts the `system` user so the foreign key on `images.sub` is valid:
 
 ```ts
 await client.query(
@@ -176,14 +104,9 @@ await client.query(
 );
 ```
 
-Each local image is uploaded to S3 with a stable generated key:
+Each image is uploaded to S3 and then recorded in the database:
 
 ```ts
-const key = keyFor(photoName, index);
-const title = titleFor(photoName);
-const contentType = contentTypeFor(photoName);
-const body = await readFile(join(photosDir, photoName));
-
 await s3Client.send(
   new PutObjectCommand({
     Bucket: bucketName,
@@ -192,11 +115,7 @@ await s3Client.send(
     ContentType: contentType,
   }),
 );
-```
 
-The script then upserts the matching row in `images`. This is the database-backed part of the seed process:
-
-```ts
 await client.query(
   `INSERT INTO images (sub, uuid_filename, image_name, image_description, created_at)
    VALUES ($1, $2, $3, $4, NOW())
@@ -215,7 +134,19 @@ The root package scripts are updated so seeding is part of a full deployment:
 "deploy-everything": "pnpm run cdk:deploy:website && pnpm run cdk:deploy:cognito && pnpm run cdk:deploy:images && pnpm run cdk:deploy:rds && pnpm run database:migrate && pnpm run images:init && pnpm run cdk:deploy:api && pnpm run ui:generate-env && pnpm run deploy-website"
 ```
 
-The API test script is also updated. It now checks the profile endpoints and expects the metadata-aware upload endpoint to reject an incomplete regular-user request:
+The API test script is also updated. `scripts/src/api-test.ts` now prepares test users, gets tokens, and runs the security checks:
+
+```ts
+const apiBaseUrl = await getApiBaseUrl();
+const cognitoConfig = await prepareTestUsers();
+
+const [userToken, adminToken] = await Promise.all([
+  getIdToken(cognitoConfig, regularTestUser),
+  getIdToken(cognitoConfig, adminTestUser),
+]);
+```
+
+It now includes checks for the profile route and for Zod validation on the upload endpoint:
 
 ```ts
 {
@@ -233,24 +164,60 @@ The API test script is also updated. It now checks the profile endpoints and exp
 },
 ```
 
-Finally, the Cognito test-user helper changes how it creates test accounts. Instead of only creating users administratively, it deletes and signs them up again so the post-confirmation trigger runs and creates matching `registered_user` rows:
+The test users live in `scripts/src/lib/testUsers.ts`:
 
 ```ts
-await cognitoClient.send(
-  new SignUpCommand({
-    ClientId: clientId,
-    Username: user.email,
-    Password: user.password,
-    UserAttributes: [{ Name: "email", Value: user.email }],
-  }),
-);
+export const regularTestUser = {
+  email: "test-user@example.com",
+  password: "TestUserPassword123!",
+};
 
-await cognitoClient.send(
-  new AdminConfirmSignUpCommand({
-    UserPoolId: userPoolId,
-    Username: user.email,
-  }),
-);
+export const adminTestUser = {
+  email: "test-admin@example.com",
+  password: "TestAdminPassword123!",
+  groupName: "administrators",
+};
 ```
 
-That means `pnpm run api:test` now exercises the deployed API, the Cognito authorizer, the Cognito groups, the post-confirmation Lambda, and the database-backed profile route together.
+`prepareTestUsers()` in `scripts/src/lib/cognito.ts` resets both accounts before each test run:
+
+```text
+delete Cognito users if present
+delete database rows for those emails if present
+sign up Cognito users again
+confirm them
+verify email
+add the admin user to the administrators group
+wait for the post-confirmation Lambda to create fresh database rows
+```
+
+The helper is split into small steps so each Cognito action is easy to read:
+
+```ts
+for (const user of testUsers) {
+  await deleteCognitoUser(config, user.email);
+}
+
+await deleteRegisteredUsersByEmail(testUsers.map((user) => user.email));
+
+for (const user of testUsers) {
+  await createTestUser(config, user);
+}
+```
+
+Each test user is recreated through the normal sign-up path so the post-confirmation trigger runs:
+
+```ts
+await signUpTestUser(config, user);
+await confirmTestUser(config, user.email);
+await verifyTestUserEmail(config, user.email);
+```
+
+The script then waits for the matching database row before continuing:
+
+```ts
+const sub = await getCognitoSub(config, user.email);
+await waitForRegisteredUserBySub(sub, user.email);
+```
+
+That makes `pnpm run api:test` a repeatable integration check for the deployed API, Cognito authorizer, Cognito groups, post-confirmation Lambda, and database-backed profile route.

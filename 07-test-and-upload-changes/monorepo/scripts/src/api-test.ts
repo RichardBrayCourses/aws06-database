@@ -1,14 +1,18 @@
-import { ensureTestUsers, getIdToken } from "./lib/cognito";
+import { getIdToken, prepareTestUsers } from "./lib/cognito";
 import { runApiCheck, type ApiCheck } from "./lib/api";
+import { adminTestUser, regularTestUser } from "./lib/testUsers";
 import { getApiBaseUrl } from "./lib/ssm";
 
 async function main() {
   const apiBaseUrl = await getApiBaseUrl();
-  const users = await ensureTestUsers();
+  const cognitoConfig = await prepareTestUsers();
+
+  console.log("Getting tokens...");
   const [userToken, adminToken] = await Promise.all([
-    getIdToken(users.user),
-    getIdToken(users.admin),
+    getIdToken(cognitoConfig, regularTestUser),
+    getIdToken(cognitoConfig, adminTestUser),
   ]);
+  console.log("");
 
   const checks: ApiCheck[] = [
     {
@@ -71,7 +75,7 @@ async function main() {
     },
   ];
 
-  console.log(`Testing API security at ${apiBaseUrl}`);
+  console.log(`Running API security checks at ${apiBaseUrl}`);
   console.log("");
 
   const results = [];
