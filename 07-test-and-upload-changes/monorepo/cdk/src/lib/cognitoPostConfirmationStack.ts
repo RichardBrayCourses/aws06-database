@@ -27,13 +27,6 @@ export class CognitoPostConfirmationStack extends Stack {
       environment: {
         CDK_DATABASE_NAME: props.databaseName,
       },
-      bundling: {
-        nodeModules: [
-          "pg",
-          "@aws-sdk/client-secrets-manager",
-          "@aws-sdk/client-ssm",
-        ],
-      },
     });
 
     this.lambda.addToRolePolicy(

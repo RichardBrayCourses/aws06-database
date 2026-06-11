@@ -59,13 +59,6 @@ export class ApiStack extends Stack {
         IMAGES_BUCKET_NAME: imagesBucketName,
         IMAGES_CLOUDFRONT_URL: imagesCloudfrontUrl,
       },
-      bundling: {
-        nodeModules: [
-          "pg",
-          "@aws-sdk/client-secrets-manager",
-          "@aws-sdk/client-ssm",
-        ],
-      },
     });
 
     photosBucket.grantRead(apiFunction);
